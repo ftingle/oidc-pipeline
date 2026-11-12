@@ -1,0 +1,26 @@
+name: Reject Unsigned
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+jobs:
+  verify-and-reject:
+    runs-on: self-hosted
+    steps:
+      - name: Download WebGoat (unsigned)
+        run: |
+          curl -L https://github.com/WebGoat/WebGoat/releases/download/v2023.8/webgoat-2023.8.jar \
+            -o webgoat.jar
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Verify signature (expected to fail - no signature)
+        run: |
+          cosign verify-blob \
+            --bundle webgoat.jar.bundle \
+            --certificate-identity-regexp "https://github.com/ftingle" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            webgoat.jar

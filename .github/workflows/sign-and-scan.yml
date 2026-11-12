@@ -1,0 +1,45 @@
+name: Sign and Scan
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
+jobs:
+  sign-attest-scan:
+    runs-on: self-hosted
+    steps:
+      - name: Download WebGoat
+        run: |
+          curl -L https://github.com/WebGoat/WebGoat/releases/download/v2023.8/webgoat-2023.8.jar \
+            -o webgoat.jar
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifact with OIDC
+        run: cosign sign-blob --yes webgoat.jar --bundle webgoat.jar.bundle
+
+      - name: Attest provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: webgoat.jar
+
+      - name: Verify signature
+        run: |
+          cosign verify-blob \
+            --bundle webgoat.jar.bundle \
+            --certificate-identity-regexp "https://github.com/ftingle" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            webgoat.jar
+
+      - name: Sonatype Lifecycle Scan
+        uses: sonatype/actions/evaluate@v1
+        with:
+          iq-server-url: ${{ secrets.LIFECYCLE_URL }}
+          username: ${{ secrets.LIFECYCLE_USERNAME }}
+          password: ${{ secrets.LIFECYCLE_PASSWORD }}
+          application-id: oidc-pipeline
+          scan-targets: webgoat.jar
